@@ -10,4 +10,12 @@
     <PackageReference Include="System.Data.SQLite" Version="1.0.119" />
   </ItemGroup>
 
+  <!-- SQLite3 Multiple Ciphers: needed to read the encrypted meta from the game folder -->
+  <ItemGroup>
+    <None Include="lib\sqlite3mc_x64.dll">
+      <Link>sqlite3mc_x64.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
