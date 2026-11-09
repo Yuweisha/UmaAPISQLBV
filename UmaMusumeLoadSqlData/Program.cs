@@ -41,6 +41,8 @@ namespace UmaMusumeLoadSqlData
         private static UmaRegion _region = UmaRegion.Japan;
         private static bool _forceDecrypt = false;
         private static bool _decryptOnly = false;
+        private static string _keysOutPath = "keys.txt";
+        private static bool _skipKeys;
         #endregion
 
         #region Input Path Environment Variables
@@ -125,6 +127,13 @@ namespace UmaMusumeLoadSqlData
                     case "--decrypt-only":
                         _decryptOnly = true;
                         break;
+                    case "--keys-out":
+                        _keysOutPath = RequireValue(args[i], value);
+                        i++;
+                        break;
+                    case "--no-keys":
+                        _skipKeys = true;
+                        break;
                     case "--verbose":
                         IsVerbose = true;
                         break;
@@ -183,6 +192,25 @@ namespace UmaMusumeLoadSqlData
                 /* The game ships meta encrypted (SQLite3MC / SQLCipher-compatible); decrypt it first */
                 metaDbDestinationFilepath = MetaDecryptor.EnsurePlaintext(
                     metaDbDestinationFilepath, _region, _metaKeyHex, reuseExisting: !_forceDecrypt, verbose: true);
+
+                /* Also dump the per-resource key table: a rebuilt meta leaves the "e" column at 0
+                   and can only be filled from this export. */
+                if (!_skipKeys)
+                {
+                    try
+                    {
+                        int exported = MetaDecryptor.ExportKeys(metaDbDestinationFilepath, Path.GetFullPath(_keysOutPath), verbose: true);
+
+                        if (exported == 0)
+                        {
+                            Console.WriteLine("   (no resource keys exported; pass --keys-out <path> to change the target)");
+                        }
+                    }
+                    catch (Exception keyError)
+                    {
+                        Console.WriteLine($"   WARNING: exporting keys.txt failed ({keyError.Message})");
+                    }
+                }
 
                 if (_decryptOnly)
                 {

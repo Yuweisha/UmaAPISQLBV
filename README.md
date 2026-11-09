@@ -92,3 +92,26 @@ SELECT COUNT(*) FROM skill_data;
 ## License
 
 Same as upstream (see `LICENSE`).
+
+## Exporting resource keys (keys.txt)
+
+While importing, the loader also dumps the game's per-resource key table to `keys.txt`
+(`<hash><TAB><key>`, one per line, written next to the working directory by default).
+
+This comes from the `e` column of the game's `meta`, which holds the key used to decrypt each
+asset bundle. It is needed by tools that rebuild the database themselves: a rebuilt `meta` has the
+`e` column but leaves it at `0`, so the keys have to be re-applied from an export like this one.
+
+```
+UmaMusumeLoadSqlData --meta <path>/meta --master <path>/master/master.mdb --keys-out keys.txt
+```
+
+Options:
+
+| flag           | meaning                                                        |
+| -------------- | -------------------------------------------------------------- |
+| `--keys-out`   | where to write the file (default `keys.txt`)                     |
+| `--no-keys`    | skip the export                                                 |
+| `--decrypt-only` | decrypt (and export) without importing into MySQL             |
+
+If the meta is already a rebuilt database (no `e` column), nothing is written and a note is printed.

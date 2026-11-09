@@ -70,6 +70,76 @@ namespace UmaMusumeLoadSqlData.Encryption
             return outputPath;
         }
 
+        /// <summary>
+        /// Exports the per-resource key table as "&lt;hash&gt;\t&lt;key&gt;" lines.
+        ///
+        /// The game's meta has an "e" column holding the key used to decrypt each asset bundle.
+        /// A database rebuilt by UmaViewer has that column but leaves it at 0, and upstream
+        /// UmaViewer has no way to fill it back in -- hence this export, which feeds exactly the
+        /// format UmaViewer's key sync expects.
+        ///
+        /// Returns the number of rows written; 0 means the column is absent or empty and no file
+        /// is produced.
+        /// </summary>
+        public static int ExportKeys(string plaintextMetaPath, string outputPath, bool verbose = false)
+        {
+            if (!File.Exists(plaintextMetaPath))
+            {
+                throw new FileNotFoundException($"meta not found: {plaintextMetaPath}");
+            }
+
+            using SQLiteConnection connection = new($"Data Source={plaintextMetaPath};Version=3;Read Only=True;Pooling=False;");
+            connection.Open();
+
+            using (SQLiteCommand probe = new("SELECT COUNT(*) FROM pragma_table_info('a') WHERE name='e'", connection))
+            {
+                if (Convert.ToInt64(probe.ExecuteScalar() ?? 0L) == 0)
+                {
+                    if (verbose)
+                    {
+                        Console.WriteLine("This meta has no 'e' column (it is a rebuilt database), so no keys were exported.");
+                    }
+
+                    return 0;
+                }
+            }
+
+            int written = 0;
+
+            string directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using StreamWriter writer = new(outputPath, false, new UTF8Encoding(false)) { NewLine = "\n" };
+            using SQLiteCommand command = new("SELECT h, e FROM a WHERE e IS NOT NULL AND e <> 0", connection);
+            using SQLiteDataReader reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1)) continue;
+
+                string hash = reader.GetString(0);
+                long key = reader.GetInt64(1);
+
+                if (string.IsNullOrEmpty(hash) || key == 0) continue;
+
+                writer.Write(hash);
+                writer.Write('\t');
+                writer.Write(key);
+                writer.Write('\n');
+                written++;
+            }
+
+            if (verbose)
+            {
+                Console.WriteLine($"Exported {written} resource key(s) -> {Path.GetFullPath(outputPath)}");
+            }
+
+            return written;
+        }
+
         public static void Decrypt(string encryptedPath, string outputPath, byte[] key, UmaRegion region, bool verbose = false)
         {
             if (!File.Exists(encryptedPath))
